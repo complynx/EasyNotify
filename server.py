@@ -112,7 +112,7 @@ class Server(tornado.web.Application):
                  listener_key=None, notifier_key=None):
         self.listener_key = listener_key
         self.notifier_key = notifier_key
-        tornado.log.enable_pretty_logging(logger=logging.getLogger('tornado'))
+        # tornado.log.enable_pretty_logging(logger=logging.getLogger('tornado'))
         log.setLevel(loglevel)
         log.debug('Initializing server')
         tornado.web.Application.__init__(self, [
@@ -164,6 +164,8 @@ class Server(tornado.web.Application):
 
 if __name__ == "__main__":
     import argparse
+    import time
+    import logging.handlers
 
     parser = argparse.ArgumentParser(description='Starts a server that helps with retransmitting of notifications'
                                                  ' to your IoT device. You can use it as is or mount it at some Nginx'
@@ -173,6 +175,7 @@ if __name__ == "__main__":
     parser.add_argument('-P', '--prefix', default='', help="Prefix of the api. As '<prefix>/send'")
     parser.add_argument('-k', '--notifier_key', default=None, help="Key for notifier identification")
     parser.add_argument('-K', '--listener_key', default=None, help="Key for listener identification")
+    parser.add_argument('-L', '--logfile', default='', help="Logger file, stdout if none")
     parser.add_argument(
         '-d', '--debug',
         help="Print lots of debugging statements",
@@ -186,7 +189,18 @@ if __name__ == "__main__":
     )
     arg = parser.parse_args()
 
-    logging.basicConfig(level=arg.loglevel)
+    formatter = logging.Formatter(
+        '%(asctime)s (UTC) [ %(levelname)s ] %(name)s %(filename)s:%(lineno)d %(funcName)s(): %(message)s')
+    formatter.converter = time.gmtime
+    log_handler = logging.handlers.RotatingFileHandler(maxBytes=5*1024*1024, backupCount=5, filename=arg.logfile) if \
+        len(arg.logfile) > 0 else logging.StreamHandler()
+    log_handler.setFormatter(formatter)
+    while len(logging.root.handlers):
+        log.removeHandler(logging.root.handlers[0])
+    logging.root.addHandler(log_handler)
+
+    logging.basicConfig(level=arg.loglevel, handlers=[log_handler])
+
     srv = Server(
         address=arg.address,
         port=arg.port,
